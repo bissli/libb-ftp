@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "libb-ftp"
+version = "0.1.0"
+description = ""
+authors = ["bissli <bissli@xyz.com>"]
+readme = "README.md"
+packages = [{ include = "ftp", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "~3.11"
+
+paramiko = "^3.4.0"
+libb-date = { git = "https://github.com/bissli/libb-date.git", rev = "master" }
+libb-util = { git = "https://github.com/bissli/libb-util.git", rev = "master" }
+
+# == test
+asserts = { version = "^0.12.0", optional = true }
+pytest = { version = "^8.0.0", optional = true }
+pdbpp = { git = "https://github.com/pdbpp/pdbpp.git", rev = "master", optional = true }
+
+[tool.poetry.extras]
+test = [
+  "asserts",
+  "pdbpp",
+  "pytest",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
