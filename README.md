@@ -1,2 +1,7 @@
-libb-db
-=======
+libb-ftp
+========
+
+ENVIRONMENTAL VARIABLES
+
+- CONFIG_GPG_DIR
+- CONFIG_TMPDIR_DIR
