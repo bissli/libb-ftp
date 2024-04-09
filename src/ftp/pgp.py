@@ -7,7 +7,7 @@ from pathlib import Path
 
 from date import DateTime, now
 from ftp.config import gpg
-from ftp.options import Options
+from ftp.options import FtpOptions
 from libb import load_options
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def decrypt_pgp_file(options, pgpname: str, newname=None):
         logger.error('Failed to decrypt %s\n%s:', pgpname, err)
 
 
-@load_options(cls=Options)
+@load_options(cls=FtpOptions)
 def decrypt_all_pgp_files(options=None, config=None, **kw):
     """Backup approach to decrypting all saved pgp files
 

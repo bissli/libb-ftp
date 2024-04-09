@@ -23,7 +23,7 @@ def rename_pgp():
 
 
 @dataclass
-class Options(ConfigOptions):
+class FtpOptions(ConfigOptions):
 
     # sitename for repr
     sitename: str = None
@@ -58,11 +58,11 @@ class Options(ConfigOptions):
         self.localdir = Path(self.localdir)
 
 
-__all__ = ['Options']
+__all__ = ['FtpOptions']
 
 
 if __name__ == '__main__':
-    options = Options(hostname='127.0.0.1', username='foo', password='bar')
+    options = FtpOptions(hostname='127.0.0.1', username='foo', password='bar')
     print(options.rename_pgp('test.pgp'))
     options.stats['test'] += 1
     print(options.__dict__)

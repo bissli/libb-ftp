@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from date import LCL, DateTime
-from ftp.options import Options
+from ftp.options import FtpOptions
 from ftp.pgp import decrypt_pgp_file
 from libb import FileLike, load_options
 
@@ -46,7 +46,7 @@ FTP_DIR_RE = (
 )
 
 
-@load_options(cls=Options)
+@load_options(cls=FtpOptions)
 def connect(options=None, config=None, **kw):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
@@ -105,7 +105,7 @@ def parse_ftp_dir_entry(line, tzinfo):
             return entry
 
 
-@load_options(cls=Options)
+@load_options(cls=FtpOptions)
 def sync_site(options=None, config=None, **kw):
     """Use local config module to specify sites to sync via FTP
 
@@ -283,17 +283,16 @@ class FtpConnection:
 
 class SecureFtpConnection:
 
-    def __init__(self, hostname, username, password, port=22, tzinfo=LCL):
+    def __init__(self, hostname, username, password, port=22, tzinfo=LCL,
+                 allow_agent=False, look_for_keys=False):
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh.connect(
-            hostname,
-            username=username,
-            password=password,
-            port=port,
-            allow_agent=kw.get('allow_agent', False),
-            look_for_keys=kw.get('look_for_keys', False),
-            )
+        self.ssh.connect(hostname,
+                         username=username,
+                         password=password,
+                         port=port,
+                         allow_agent=allow_agent,
+                         look_for_keys=look_for_keys)
         self.ftp = self.ssh.open_sftp()
         self._tzinfo = tzinfo
 
