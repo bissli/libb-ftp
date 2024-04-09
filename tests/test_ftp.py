@@ -24,7 +24,7 @@ def make_binary_file(filename, ints):
 def test_ftp_pub_ascii(ftp_docker):
     localfile = os.path.join(config.tmpdir.dir, 'Local.txt')
     make_text_file(localfile, 10)
-    ftpcn = ftp.connect('vendor.FOO', config=config)
+    ftpcn = ftp.connect('vendor.FOO.ftp', config=config)
     with contextlib.suppress(Exception):
         ftpcn.delete('Remote.txt')
     ftpcn.putascii(localfile, 'Remote.txt')
@@ -40,7 +40,7 @@ def test_ftp_pub_ascii(ftp_docker):
 def test_put_get_binary(ftp_docker):
     localfile = os.path.join(config.tmpdir.dir, 'Local.dat')
     make_binary_file(localfile, 1000)
-    ftpcn = ftp.connect('vendor.FOO', config=config)
+    ftpcn = ftp.connect('vendor.FOO.ftp', config=config)
     with contextlib.suppress(Exception):
         ftpcn.delete('Remote.dat')
     ftpcn.putbinary(localfile, 'Remote.dat')
