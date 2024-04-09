@@ -73,6 +73,9 @@ def connect(options, config, cd=None):
                     raise paramiko.SSHException
             else:
                 cn = FtpConnection(options.hostname, options.username, options.password)
+        except paramiko.AuthenticationException as err:
+            logger.error(err)
+            return
         except (paramiko.SSHException, socket.error) as err:
             logger.error(err)
             time.sleep(10)
