@@ -47,7 +47,7 @@ FTP_DIR_RE = (
 
 
 @load_options(cls=Options)
-def connect(options, config, cd=None):
+def connect(options, config):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
 
@@ -82,8 +82,8 @@ def connect(options, config, cd=None):
             tries += 1
     if not cn or tries > 10:
         return
-    if cd:
-        cn.cd(cd)
+    if options.remotedir:
+        cn.cd(options.remotedir)
     return cn
 
 
@@ -146,11 +146,12 @@ def sync_site(options, config):
 def sync_directory(cn, options, files):
     """Sync a remote FTP directory to a local directory recursively
     """
-    logger.info(f'Syncing directory {options.remotedir}')
+    logger.info(f'Syncing directory {options.remotedir or "/"}')
     wd = cn.pwd()
     try:
-        logger.debug(f'CD down to: {options.remotedir}')
-        cn.cd(options.remotedir)
+        if options.remotedir:
+            logger.debug(f'CD down to: {options.remotedir}')
+            cn.cd(options.remotedir)
         entries = cn.dir()
         for entry in entries:
             if options.ignore_re and re.match(options.ignore_re, entry.name):
@@ -159,7 +160,7 @@ def sync_directory(cn, options, files):
                 continue
             if entry.is_dir:
                 options.localdir = options.localdir / entry.name
-                options.remotedir = options.remotedir / entry.name
+                options.remotedir = os.path.join(options.remotedir, entry.name)
                 sync_directory(cn, options, files)
                 continue
             try:
@@ -211,6 +212,12 @@ def sync_file(cn, options, entry):
     return filename
 
 
+def as_posix(path):
+    if not path:
+        return
+    return str(path).replace(os.sep, '/')
+
+
 class FtpConnection:
     """Wrapper around ftplib
     """
@@ -224,7 +231,7 @@ class FtpConnection:
 
     def cd(self, path):
         """Change the working directory"""
-        return self.ftp.cwd(path)
+        return self.ftp.cwd(as_posix(path))
 
     def dir(self):
         """Return a directory listing as an array of lines"""
@@ -244,25 +251,25 @@ class FtpConnection:
     def getascii(self, remotefile, localfile=None):
         """Get a file in ASCII (text) mode"""
         with Path(localfile or remotefile).open('w') as f:
-            self.ftp.retrlines(f'RETR {remotefile}', lambda line: f.write(line + '\n'))
+            self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(line + '\n'))
 
     def getbinary(self, remotefile, localfile=None):
         """Get a file in binary mode"""
         with Path(localfile or remotefile).open('wb') as f:
-            self.ftp.retrbinary(f'RETR {remotefile}', f.write)
+            self.ftp.retrbinary(f'RETR {as_posix(remotefile)}', f.write)
 
     def putascii(self, localfile, remotefile=None):
         """Put a file in ASCII (text) mode"""
         with Path(localfile).open('rb') as f:
-            self.ftp.storlines(f'STOR {remotefile or localfile}', f)
+            self.ftp.storlines(f'STOR {as_posix(remotefile or localfile)}', f)
 
     def putbinary(self, localfile, remotefile=None):
         """Put a file in binary mode"""
         with Path(localfile).open('rb') as f:
-            self.ftp.storbinary(f'STOR {remotefile or localfile}', f, 1024)
+            self.ftp.storbinary(f'STOR {as_posix(remotefile or localfile)}', f, 1024)
 
     def delete(self, remotefile):
-        self.ftp.delete(remotefile)
+        self.ftp.delete(as_posix(remotefile))
 
     def close(self):
         with contextlib.suppress(Exception):
@@ -291,7 +298,7 @@ class SecureFtpConnection:
 
     def cd(self, path):
         """Change the working directory"""
-        return self.ftp.chdir(path)
+        return self.ftp.chdir(as_posix(path))
 
     def dir(self):
         """Return a directory listing as an array of lines"""
@@ -310,25 +317,25 @@ class SecureFtpConnection:
 
     def getascii(self, remotefile, localfile=None):
         """Get a file in ASCII (text) mode"""
-        self.ftp.get(remotefile, localfile or remotefile)
+        self.ftp.get(as_posix(remotefile), localfile or remotefile)
 
     def getbinary(self, remotefile, localfile=None):
         """Get a file in binary mode"""
         try:
-            self.ftp.get(remotefile, localfile or remotefile)
+            self.ftp.get(as_posix(remotefile), localfile or remotefile)
         except EnvironmentError:
             logger.warning(f'Could not GET {remotefile}')
 
     def putascii(self, localfile, remotefile=None):
         """Put a file in ASCII (text) mode"""
-        self.ftp.put(localfile, remotefile or localfile)
+        self.ftp.put(localfile, as_posix(remotefile or localfile))
 
     def putbinary(self, localfile, remotefile=None):
         """Put a file in binary mode"""
-        self.ftp.put(localfile, remotefile or localfile)
+        self.ftp.put(localfile, as_posix(remotefile or localfile))
 
     def delete(self, remotefile):
-        self.ftp.remove(remotefile)
+        self.ftp.remove(as_posix(remotefile))
 
     def close(self):
         with contextlib.suppress(Exception):

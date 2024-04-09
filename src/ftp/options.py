@@ -54,7 +54,6 @@ class Options(ConfigOptions):
     def __post_init__(self):
         self.stats = defaultdict(int)
         self.localdir = Path(self.localdir)
-        self.remotedir = Path(self.remotedir)
 
 
 __all__ = ['Options']
