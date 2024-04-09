@@ -13,10 +13,9 @@ from pathlib import Path
 from typing import NamedTuple
 
 from date import LCL, DateTime
+from ftp.options import Options
+from ftp.pgp import decrypt_pgp_file
 from libb import FileLike, load_options
-
-from .options import Options
-from .pgp import decrypt_pgp_file
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,7 @@ def sync_site(options, config):
     logger.info(f'Syncing FTP site for {options.sitename or ""}')
     files = []
     if cn := connect(options, config):
-        sync_directory(cn, options, '/', Path(options.localdir), files)
+        sync_directory(cn, options, files)
         logger.info(
             '%d copied, %d decrypted, %d skipped, %d ignored',
             options.stats['copied'],
@@ -141,14 +140,14 @@ def sync_site(options, config):
     return files
 
 
-def sync_directory(cn, options, remotedir: str, localdir: Path, files):
+def sync_directory(cn, options, files):
     """Sync a remote FTP directory to a local directory recursively
     """
-    logger.info(f'Syncing directory {remotedir}')
+    logger.info(f'Syncing directory {options.remotedir}')
     wd = cn.pwd()
     try:
-        logger.debug(f'CD down to: {remotedir}')
-        cn.cd(remotedir)
+        logger.debug(f'CD down to: {options.remotedir}')
+        cn.cd(options.remotedir)
         entries = cn.dir()
         for entry in entries:
             if options.ignore_re and re.match(options.ignore_re, entry.name):
@@ -156,34 +155,35 @@ def sync_directory(cn, options, remotedir: str, localdir: Path, files):
                 options.stats['ignored'] += 1
                 continue
             if entry.is_dir:
-                sync_directory(cn, options, (Path(remotedir) / entry.name).as_posix(),
-                               localdir / entry.name, files)
+                options.localdir = options.localdir / entry.name
+                options.remotedir = options.remotedir / entry.name
+                sync_directory(cn, options, files)
                 continue
             try:
-                filename = sync_file(cn, options, remotedir, localdir, entry)
+                filename = sync_file(cn, options, entry)
                 if filename:
                     files.append(filename)
             except:
-                logger.exception('Error syncing file: %s/%s', remotedir, entry.name)
+                logger.exception('Error syncing file: %s/%s', options.remotedir, entry.name)
     finally:
         logger.debug(f'CD back to {wd}')
         cn.cd(wd)
 
 
-def sync_file(cn, options, remotedir: str, localdir: Path, entry):
+def sync_file(cn, options, entry):
     if options.ignoreolderthan and entry.datetime < DateTime.now().subtract(days=int(options.ignoreolderthan)):
-        logger.debug('File is too old: %s/%s, skipping (%s)', remotedir, entry.name, str(entry.datetime))
+        logger.debug('File is too old: %s/%s, skipping (%s)', options.remotedir, entry.name, str(entry.datetime))
         return
-    localfile = localdir / entry.name
-    localpgpfile = (localdir / '.pgp') / entry.name
+    localfile = options.localdir / entry.name
+    localpgpfile = (options.localdir / '.pgp') / entry.name
     if not options.ignorelocal and (localfile.exists() or localpgpfile.exists()):
         st = localfile.stat() if localfile.exists() else localpgpfile.stat()
         if entry.datetime <= DateTime(st.st_mtime):
             if not options.ignoresize and (entry.size == st.st_size):
-                logger.debug('File has not changed: %s/%s, skipping', remotedir, entry.name)
+                logger.debug('File has not changed: %s/%s, skipping', options.remotedir, entry.name)
                 options.stats['skipped'] += 1
                 return
-    logger.debug('Downloading file: %s/%s to %s', remotedir, entry.name, localfile)
+    logger.debug('Downloading file: %s/%s to %s', options.remotedir, entry.name, localfile)
     filename = None
     with contextlib.suppress(Exception):
         Path(os.path.split(localfile)[0]).mkdir(parents=True)
@@ -199,12 +199,12 @@ def sync_file(cn, options, remotedir: str, localdir: Path, entry):
     if not options.nocopy and not options.nodecryptlocal and options.is_encrypted(localfile.as_posix()):
         newname = options.rename_pgp(entry.name)
         # keep a copy for stat comparison above but move to .pgp dir so it doesn't clutter the main directory
-        decrypt_pgp_file(options, localdir, entry.name, newname)
+        decrypt_pgp_file(options, entry.name, newname)
         with contextlib.suppress(Exception):
             os.makedirs(os.path.split(localpgpfile)[0])
         shutil.move(localfile, localpgpfile)
         options.stats['decrypted'] += 1
-        filename = localdir / newname
+        filename = options.localdir / newname
     return filename
 
 

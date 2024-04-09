@@ -1,7 +1,9 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import DefaultDict, List
 
+from ftp.config import tmpdir
 from libb import ConfigOptions
 
 
@@ -34,10 +36,11 @@ class Options(ConfigOptions):
 
     # connection optional
     pgp_extension: str = None
-    localdir: str = None
     ignore_re: str = None
     is_encrypted: callable = field(default_factory=is_encrypted, repr=False)
     rename_pgp: callable = field(default_factory=rename_pgp, repr=False)
+    localdir: str = tmpdir.dir
+    remotedir: str = '/'
 
     # for sync
     nocopy: bool = False
@@ -50,6 +53,8 @@ class Options(ConfigOptions):
 
     def __post_init__(self):
         self.stats = defaultdict(int)
+        self.localdir = Path(self.localdir)
+        self.remotedir = Path(self.remotedir)
 
 
 __all__ = ['Options']

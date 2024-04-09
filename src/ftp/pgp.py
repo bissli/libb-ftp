@@ -6,17 +6,16 @@ import subprocess
 from pathlib import Path
 
 from date import DateTime, now
+from ftp.config import gpg
+from ftp.options import Options
 from libb import load_options
-
-from .config import gpg
-from .options import Options
 
 logger = logging.getLogger(__name__)
 
 __all__ = ['decrypt_pgp_file']
 
 
-def decrypt_pgp_file(options, path: Path, pgpname: str, newname=None):
+def decrypt_pgp_file(options, pgpname: str, newname=None):
     """Decrypt file with GnuPG: FIXME move this to a library
     """
     if not newname:
@@ -34,9 +33,9 @@ def decrypt_pgp_file(options, path: Path, pgpname: str, newname=None):
         '--passphrase-fd',
         '0',
         '--output',
-        (path / newname).as_posix(),
+        (options.localdir / newname).as_posix(),
         '--decrypt',
-        (path / pgpname).as_posix(),
+        (options.localdir / pgpname).as_posix(),
     ]
     if options.pgp_extension:
         gpg_cmd.insert(-3, '--load-extension')
