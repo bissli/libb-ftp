@@ -68,11 +68,13 @@ def connect(options=None, config=None, **kw):
             if options.secure:
                 cn = SecureFtpConnection(options.hostname, username=options.username,
                                          password=options.password,
-                                         port=options.port)
+                                         port=options.port,
+                                         tzinfo=options.tzinfo)
                 if not cn:
                     raise paramiko.SSHException
             else:
-                cn = FtpConnection(options.hostname, options.username, options.password)
+                cn = FtpConnection(options.hostname, options.username,
+                                   options.password, tzinfo=options.tzinfo)
         except paramiko.AuthenticationException as err:
             logger.error(err)
             return
@@ -91,13 +93,16 @@ def parse_ftp_dir_entry(line, tzinfo):
     for pattern in FTP_DIR_RE:
         if m := re.search(pattern, line):
             try:
-                return Entry(line, m.group(4), m.group(1)[0] == 'd',
-                             int(m.group(2)),
-                             DateTime(m.group(3)).replace(tzinfo=tzinfo))
+                entry = Entry(line,
+                              m.group(4),
+                              m.group(1)[0] == 'd',
+                              int(m.group(2)),
+                              DateTime.parse(m.group(3)).replace(tzinfo=tzinfo))
             except Exception as exc:
                 logger.error(f'Error with line {line}, groups: {m.groups()}')
                 logger.exception(exc)
                 raise exc
+            return entry
 
 
 @load_options(cls=Options)
@@ -182,7 +187,7 @@ def sync_file(cn, options, entry):
     localpgpfile = (options.localdir / '.pgp') / entry.name
     if not options.ignorelocal and (localfile.exists() or localpgpfile.exists()):
         st = localfile.stat() if localfile.exists() else localpgpfile.stat()
-        if entry.datetime <= DateTime(st.st_mtime):
+        if entry.datetime <= DateTime.parse(st.st_mtime).replace(tzinfo=options.tzinfo):
             if not options.ignoresize and (entry.size == st.st_size):
                 logger.debug('File has not changed: %s/%s, skipping', options.remotedir, entry.name)
                 options.stats['skipped'] += 1
@@ -221,9 +226,9 @@ def as_posix(path):
 class FtpConnection:
     """Wrapper around ftplib
     """
-    def __init__(self, hostname, username, password, **kw):
+    def __init__(self, hostname, username, password, tzinfo=LCL):
         self.ftp = ftplib.FTP(hostname, username, password)
-        self._tzinfo = kw.get('tzinfo', LCL)
+        self._tzinfo = tzinfo
 
     def pwd(self):
         """Return the current directory"""
@@ -278,7 +283,7 @@ class FtpConnection:
 
 class SecureFtpConnection:
 
-    def __init__(self, hostname, username, password, port=22, **kw):
+    def __init__(self, hostname, username, password, port=22, tzinfo=LCL):
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.ssh.connect(
@@ -290,7 +295,7 @@ class SecureFtpConnection:
             look_for_keys=kw.get('look_for_keys', False),
             )
         self.ftp = self.ssh.open_sftp()
-        self._tzinfo = kw.get('tzinfo', LCL)
+        self._tzinfo = tzinfo
 
     def pwd(self):
         """Return the current directory"""
@@ -305,9 +310,11 @@ class SecureFtpConnection:
         files = self.ftp.listdir_attr()
         entries = []
         for f in files:
-            entry = Entry(f.longname, f.filename, stat.S_ISDIR(f.st_mode),
+            entry = Entry(f.longname,
+                          f.filename,
+                          stat.S_ISDIR(f.st_mode),
                           f.st_size,
-                          DateTime(f.st_mtime).replace(tzinfo=self._tzinfo))
+                          DateTime.parse(f.st_mtime).replace(tzinfo=self._tzinfo))
             entries.append(entry)
         return entries
 

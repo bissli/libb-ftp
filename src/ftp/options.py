@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import DefaultDict, List
 
+from date import LCL
 from ftp.config import tmpdir
 from libb import ConfigOptions
 
@@ -50,6 +51,7 @@ class Options(ConfigOptions):
     ignoreolderthan: int | None = None
     address: List = field(default_factory=list)
     stats: DefaultDict = field(init=False)
+    tzinfo = LCL
 
     def __post_init__(self):
         self.stats = defaultdict(int)
