@@ -52,7 +52,7 @@ def decrypt_pgp_file(options, pgpname: str, newname=None):
 
 
 @load_options(cls=Options)
-def decrypt_all_pgp_files(options, config):
+def decrypt_all_pgp_files(options=None, config=None, **kw):
     """Backup approach to decrypting all saved pgp files
 
     Assumes that local config.py contains a general stie structure

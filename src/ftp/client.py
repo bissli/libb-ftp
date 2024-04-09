@@ -47,7 +47,7 @@ FTP_DIR_RE = (
 
 
 @load_options(cls=Options)
-def connect(options, config):
+def connect(options=None, config=None, **kw):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
 
@@ -101,7 +101,7 @@ def parse_ftp_dir_entry(line, tzinfo):
 
 
 @load_options(cls=Options)
-def sync_site(options, config):
+def sync_site(options=None, config=None, **kw):
     """Use local config module to specify sites to sync via FTP
 
     Assumes that local config.py contains a general stie structure
