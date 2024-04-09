@@ -8,14 +8,13 @@ import socket
 import stat
 import sys
 import time
-from io import BytesIO
 from pathlib import Path
 from typing import NamedTuple
 
 from date import LCL, DateTime
 from ftp.options import FtpOptions
 from ftp.pgp import decrypt_pgp_file
-from libb import FileLike, load_options
+from libb import load_options
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +85,7 @@ def connect(options=None, config=None, **kw):
         return
     if options.remotedir:
         cn.cd(options.remotedir)
+        options.remotedir = cn.pwd()
     return cn
 
 
@@ -152,11 +152,11 @@ def sync_directory(cn, options, files):
     """Sync a remote FTP directory to a local directory recursively
     """
     logger.info(f'Syncing directory {options.remotedir or "/"}')
-    wd = cn.pwd()
+    originaldir = cn.pwd()
     try:
-        if options.remotedir:
-            logger.debug(f'CD down to: {options.remotedir}')
-            cn.cd(options.remotedir)
+        logger.debug(f'CD to: {options.remotedir}')
+        cn.cd(options.remotedir)
+        options.remotedir = cn.pwd()
         entries = cn.dir()
         for entry in entries:
             if options.ignore_re and re.match(options.ignore_re, entry.name):
@@ -175,8 +175,9 @@ def sync_directory(cn, options, files):
             except:
                 logger.exception('Error syncing file: %s/%s', options.remotedir, entry.name)
     finally:
-        logger.debug(f'CD back to {wd}')
-        cn.cd(wd)
+        logger.debug(f'CD back to {originaldir}')
+        cn.cd(originaldir)
+        options.remotedir = cn.pwd()
 
 
 def sync_file(cn, options, entry):

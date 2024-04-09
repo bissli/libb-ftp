@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,6 +57,7 @@ class FtpOptions(ConfigOptions):
     def __post_init__(self):
         self.stats = defaultdict(int)
         self.localdir = Path(self.localdir)
+        self.remotedir = str(self.remotedir).replace(os.sep, '/')
 
 
 __all__ = ['FtpOptions']
