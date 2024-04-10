@@ -14,7 +14,7 @@ from typing import NamedTuple
 from date import LCL, DateTime
 from ftp.options import FtpOptions
 from ftp.pgp import decrypt_pgp_file
-from libb import load_options
+from libb import FileLike, load_options
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +220,7 @@ def sync_file(cn, options, entry):
 
 def as_posix(path):
     if not path:
-        return
+        return path
     return str(path).replace(os.sep, '/')
 
 
@@ -254,25 +254,25 @@ class FtpConnection:
         """Return a bare filename listing as an array of strings"""
         return self.ftp.nlst()
 
-    def getascii(self, remotefile, localfile=None):
+    def getascii(self, remotefile, localfile):
         """Get a file in ASCII (text) mode"""
-        with Path(localfile or remotefile).open('w') as f:
+        with Path(localfile).open('w') as f:
             self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(line + '\n'))
 
-    def getbinary(self, remotefile, localfile=None):
+    def getbinary(self, remotefile, localfile):
         """Get a file in binary mode"""
-        with Path(localfile or remotefile).open('wb') as f:
+        with Path(localfile).open('wb') as f:
             self.ftp.retrbinary(f'RETR {as_posix(remotefile)}', f.write)
 
-    def putascii(self, localfile, remotefile=None):
+    def putascii(self, localfile, remotefile):
         """Put a file in ASCII (text) mode"""
         with Path(localfile).open('rb') as f:
-            self.ftp.storlines(f'STOR {as_posix(remotefile or localfile)}', f)
+            self.ftp.storlines(f'STOR {as_posix(remotefile)}', f)
 
-    def putbinary(self, localfile, remotefile=None):
+    def putbinary(self, localfile, remotefile):
         """Put a file in binary mode"""
         with Path(localfile).open('rb') as f:
-            self.ftp.storbinary(f'STOR {as_posix(remotefile or localfile)}', f, 1024)
+            self.ftp.storbinary(f'STOR {as_posix(remotefile)}', f, 1024)
 
     def delete(self, remotefile):
         self.ftp.delete(as_posix(remotefile))
@@ -322,24 +322,21 @@ class SecureFtpConnection:
         """Return a bare filename listing as an array of strings"""
         return self.ftp.listdir()
 
-    def getascii(self, remotefile, localfile=None):
+    def getascii(self, remotefile, localfile):
         """Get a file in ASCII (text) mode"""
-        self.ftp.get(as_posix(remotefile), localfile or remotefile)
+        self.ftp.get(as_posix(remotefile), localfile)
 
-    def getbinary(self, remotefile, localfile=None):
+    def getbinary(self, remotefile, localfile):
         """Get a file in binary mode"""
-        try:
-            self.ftp.get(as_posix(remotefile), localfile or remotefile)
-        except EnvironmentError:
-            logger.warning(f'Could not GET {remotefile}')
+        self.ftp.get(as_posix(remotefile), localfile)
 
-    def putascii(self, localfile, remotefile=None):
+    def putascii(self, localfile, remotefile):
         """Put a file in ASCII (text) mode"""
-        self.ftp.put(localfile, as_posix(remotefile or localfile))
+        self.ftp.put(localfile, as_posix(remotefile))
 
-    def putbinary(self, localfile, remotefile=None):
+    def putbinary(self, localfile, remotefile):
         """Put a file in binary mode"""
-        self.ftp.put(localfile, as_posix(remotefile or localfile))
+        self.ftp.put(localfile, as_posix(remotefile))
 
     def delete(self, remotefile):
         self.ftp.remove(as_posix(remotefile))
