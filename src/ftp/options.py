@@ -41,7 +41,7 @@ class FtpOptions(ConfigOptions):
     ignore_re: str = None
     is_encrypted: callable = field(default_factory=is_encrypted, repr=False)
     rename_pgp: callable = field(default_factory=rename_pgp, repr=False)
-    localdir: str = tmpdir.dir
+    localdir: Path = tmpdir.dir
     remotedir: str = '/'
 
     # for sync
