@@ -46,7 +46,7 @@ FTP_DIR_RE = (
 
 
 @load_options(cls=FtpOptions)
-def connect(options=None, config=None, **kw):
+def connect(options:FtpOptions = None, config=None, **kw):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
 
