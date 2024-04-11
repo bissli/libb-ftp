@@ -157,7 +157,7 @@ def sync_directory(cn, options, files):
         logger.debug(f'CD to: {options.remotedir}')
         cn.cd(options.remotedir)
         options.remotedir = cn.pwd()
-        entries = cn.dir()
+    entries = cn.dir(sort=True)
         for entry in entries:
             if options.ignore_re and re.match(options.ignore_re, entry.name):
                 logger.debug(f'Ignoring file that matches ignore pattern: {entry.name}')
@@ -239,7 +239,7 @@ class FtpConnection:
         """Change the working directory"""
         return self.ftp.cwd(as_posix(path))
 
-    def dir(self):
+    def dir(self, sort=False):
         """Return a directory listing as an array of lines"""
         lines = []
         self.ftp.dir(lines.append)
@@ -248,6 +248,8 @@ class FtpConnection:
             entry = parse_ftp_dir_entry(line, self._tzinfo)
             if entry:
                 entries.append(entry)
+        if sort:
+            return sorted(entries, key=lambda x: x.datetime, reverse=True)
         return entries
 
     def files(self):
@@ -305,7 +307,7 @@ class SecureFtpConnection:
         """Change the working directory"""
         return self.ftp.chdir(as_posix(path))
 
-    def dir(self):
+    def dir(self, sort=False):
         """Return a directory listing as an array of lines"""
         files = self.ftp.listdir_attr()
         entries = []
@@ -316,6 +318,8 @@ class SecureFtpConnection:
                           f.st_size,
                           DateTime.parse(f.st_mtime).replace(tzinfo=self._tzinfo))
             entries.append(entry)
+        if sort:
+            return sorted(entries, key=lambda x: x.datetime, reverse=True)
         return entries
 
     def files(self):
