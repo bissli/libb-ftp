@@ -1,11 +1,12 @@
 import contextlib
 import logging
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
-from date import DateTime
+from date import Date, DateTime
 from ftp.config import gpg
 from ftp.options import FtpOptions
 from libb import load_options
@@ -15,13 +16,14 @@ logger = logging.getLogger(__name__)
 __all__ = ['decrypt_pgp_file', 'decrypt_all_pgp_files']
 
 
-def decrypt_pgp_file(options, pgpname: str, newname=None):
+def decrypt_pgp_file(options, pgpname: str, newname=None, _local: Path = None):
     """Decrypt file with GnuPG: FIXME move this to a library
     """
+    _local = _local or options.localdir
     if not newname:
         newname = options.rename_pgp(pgpname)
     if newname == pgpname:
-        raise ValueError('pgpname and newname cannot be the same')
+        raise ValueError(f'pgpname and newname cannot be the same: {pgpname}')
     logger.debug(f'Decrypting file {pgpname} to {newname}')
     gpg_cmd = [
         gpg.exe,
@@ -33,9 +35,9 @@ def decrypt_pgp_file(options, pgpname: str, newname=None):
         '--passphrase-fd',
         '0',
         '--output',
-        (options.localdir / newname).as_posix(),
+        (_local / newname).as_posix(),
         '--decrypt',
-        (options.localdir / pgpname).as_posix(),
+        (_local / pgpname).as_posix(),
     ]
     if options.pgp_extension:
         gpg_cmd.insert(-3, '--load-extension')
@@ -72,27 +74,26 @@ def decrypt_all_pgp_files(options:FtpOptions = None, config=None, **kw):
     ...
     """
     files = []
-    for localdir, _, files in os.walk(options.localdir):
+    for _local, _, _files in os.walk(options.localdir):
         if '.pgp' in os.path.split(localdir):
             continue
-        localdir = Path(localdir)
-        logger.info(f'Walking through {len(files)} files')
-        for name in files:
-            localfile = localdir / name
-            localpgpfile = (localdir / '.pgp') / name
+        _local = Path(_local)
+        logger.info(f'Walking through {len(_files)} files')
+        for name in _files:
+            localfile = _local / name
+            localpgpfile = (_local / '.pgp') / name
             if options.ignoreolderthan:
                 created_on = DateTime.parse(localfile.stat().st_ctime)
-                ignore_datetime = DateTime.now().subtract(days=int(options.ignoreolderthan))
-                if created_on < ignore_datetime:
-                    logger.debug('File is too old: %s/%s, skipping (%s)',
-                                 localdir, name, str(created_on))
+                before_date = DateTime.now().subtract(days=int(options.ignoreolderthan))
+                if created_on < before_date:
+                    logger.debug(f'Skipping {_local}/{name}, file created on ({str(created_on)})')
                     continue
             if options.is_encrypted(name):
                 newname = options.rename_pgp(name)
-                decrypt_pgp_file(options, localdir, name, newname)
+                decrypt_pgp_file(options, name, newname, _local)
                 with contextlib.suppress(Exception):
-                    os.makedirs(os.path.split(localpgpfile)[0])
+                    Path(os.path.split(localpgpfile)[0]).mkdir(parents=True)
                 shutil.move(localfile, localpgpfile)
-                filename = localdir / newname
+                filename = _local / newname
                 files.append(filename)
     return files

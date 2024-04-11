@@ -10,13 +10,13 @@ from libb import ConfigOptions
 
 def is_encrypted():
     def wrapper(filename: str):
-        return 'pgp' in filename.split('.')
+        return 'pgp' in Path(filename).name.split('.')
     return wrapper
 
 
 def rename_pgp():
     def wrapper(pgpname: str):
-        bits = pgpname.split('.')
+        bits = Path(pgpname).name.split('.')
         bits.remove('pgp')
         return '.'.join(bits)
     return wrapper
