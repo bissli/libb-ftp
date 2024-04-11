@@ -5,14 +5,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from date import DateTime, now
+from date import DateTime
 from ftp.config import gpg
 from ftp.options import FtpOptions
 from libb import load_options
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['decrypt_pgp_file']
+__all__ = ['decrypt_pgp_file', 'decrypt_all_pgp_files']
 
 
 def decrypt_pgp_file(options, pgpname: str, newname=None):
@@ -81,8 +81,8 @@ def decrypt_all_pgp_files(options=None, config=None, **kw):
             localfile = localdir / name
             localpgpfile = (localdir / '.pgp') / name
             if options.ignoreolderthan:
-                created_on = DateTime(localfile.stat().st_ctime)
-                ignore_datetime = now().subtract(days=int(options.ignoreolderthan))
+                created_on = DateTime.parse(localfile.stat().st_ctime)
+                ignore_datetime = DateTime.now().subtract(days=int(options.ignoreolderthan))
                 if created_on < ignore_datetime:
                     logger.debug('File is too old: %s/%s, skipping (%s)',
                                  localdir, name, str(created_on))

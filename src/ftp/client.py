@@ -208,8 +208,8 @@ def sync_file(cn, options, entry):
         filename = localfile
     if not options.nocopy and not options.nodecryptlocal and options.is_encrypted(localfile.as_posix()):
         newname = options.rename_pgp(entry.name)
-        # keep a copy for stat comparison above but move to .pgp dir so it doesn't clutter the main directory
         decrypt_pgp_file(options, entry.name, newname)
+        # keep a copy for stat comparison above but move to .pgp dir so it doesn't clutter the main directory
         with contextlib.suppress(Exception):
             os.makedirs(os.path.split(localpgpfile)[0])
         shutil.move(localfile, localpgpfile)
