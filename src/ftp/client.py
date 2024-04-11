@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import shutil
-import socket
 import stat
 import sys
 import time
@@ -77,7 +76,7 @@ def connect(options:FtpOptions = None, config=None, **kw):
         except paramiko.AuthenticationException as err:
             logger.error(err)
             return
-        except (paramiko.SSHException, socket.error) as err:
+        except (OSError, paramiko.SSHException) as err:
             logger.error(err)
             time.sleep(10)
             tries += 1
@@ -259,7 +258,7 @@ class FtpConnection:
     def getascii(self, remotefile, localfile):
         """Get a file in ASCII (text) mode"""
         with Path(localfile).open('w') as f:
-            self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(line + '\n'))
+            self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(f"{line}\n"))
 
     def getbinary(self, remotefile, localfile):
         """Get a file in binary mode"""
@@ -363,6 +362,3 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('usage: ftp config (e.g. site.FOO, site.BAR)')
         sys.exit(1)
-    cn = connect(sys.argv[1])
-    files = cn.dir()
-    print(('\n'.join(map(repr, files))))

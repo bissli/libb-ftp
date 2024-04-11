@@ -2,7 +2,6 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import DefaultDict, List
 
 from date import LCL
 from ftp.config import tmpdir
@@ -50,8 +49,8 @@ class FtpOptions(ConfigOptions):
     ignorelocal:bool = False
     ignoresize: bool = False
     ignoreolderthan: int | None = None
-    address: List = field(default_factory=list)
-    stats: DefaultDict = field(init=False)
+    address: list = field(default_factory=list)
+    stats: defaultdict = field(init=False)
     tzinfo = LCL
 
     def __post_init__(self):
