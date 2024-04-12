@@ -189,7 +189,7 @@ def sync_directory(cn, options, files, _local: Path = None, _remote: str = None)
 
 def sync_file(cn, options, entry, _local: Path, _remote: str):
     if options.ignoreolderthan and entry.datetime < DateTime.now().subtract(days=int(options.ignoreolderthan)):
-        logger.debug('File is too old: %s/%s, skipping (%s)', _remote, entry.name, str(entry.datetime))
+        logger.debug('File is too old: %s/%s: (%s)', _remote, entry.name, str(entry.datetime))
         return
     localfile = _local / entry.name
     localpgpfile = (_local / '.pgp') / entry.name
@@ -197,7 +197,7 @@ def sync_file(cn, options, entry, _local: Path, _remote: str):
         st = localfile.stat() if localfile.exists() else localpgpfile.stat()
         if entry.datetime <= DateTime.parse(st.st_mtime).replace(tzinfo=options.tzinfo):
             if not options.ignoresize and (entry.size == st.st_size):
-                logger.debug('File has not changed: %s/%s, skipping', _remote, entry.name)
+                logger.debug('File has not changed: %s/%s', _remote, entry.name)
                 options.stats['skipped'] += 1
                 return
     logger.debug('Downloading file: %s/%s to %s', _remote, entry.name, localfile)
