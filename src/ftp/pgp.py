@@ -87,6 +87,9 @@ def decrypt_all_pgp_files(options:FtpOptions = None, config=None, **kw):
     ...
     """
     files = []
+    if options.ignoreolderthan:
+        oldest_date = DateTime.now().subtract(days=int(options.ignoreolderthan))
+        logger.info(f'Skipping files created before {oldest_date})')
     for _local, _, _files in os.walk(options.localdir):
         _local = Path(_local)
         if skip_folder(_local):
@@ -98,9 +101,7 @@ def decrypt_all_pgp_files(options:FtpOptions = None, config=None, **kw):
             localpgpfile = (_local / '.pgp') / name
             if options.ignoreolderthan:
                 created_on = DateTime.parse(localfile.stat().st_ctime)
-                before_date = DateTime.now().subtract(days=int(options.ignoreolderthan))
-                if created_on < before_date:
-                    logger.debug(f'Skipping {_local}/{name}, file created on ({str(created_on)})')
+                if created_on < oldest_date:
                     continue
             if options.is_encrypted(name):
                 newname = options.rename_pgp(name)
