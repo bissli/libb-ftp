@@ -56,11 +56,11 @@ def decrypt_pgp_file(options, pgpname: str, newname=None, _local: Path = None):
 __THEYEAR = Date.today().year
 
 
-def skip_folder(path):
-    path = str(path)
-    if re.search(r'prev|legacy|old|archive|depr|pgp', path, re.I):
+def skip_folder(path: Path):
+    name = path.name
+    if re.search(r'(prev|legacy|old|archive|depr|pgp)', name, re.I):
         return True
-    date_match = re.search(r'(\d{4})', path)
+    date_match = re.match(r'^20\d{2}$', name)
     if date_match:
         return int(date_match.group()) != __THEYEAR
     return False
@@ -88,10 +88,11 @@ def decrypt_all_pgp_files(options:FtpOptions = None, config=None, **kw):
     """
     files = []
     for _local, _, _files in os.walk(options.localdir):
-        if skip_folder(_local):
-            continue
         _local = Path(_local)
-        logger.info(f'Walking through {len(_files)} files')
+        if skip_folder(_local):
+            logger.debug(f'Skipping archive folder {_local}')
+            continue
+        logger.info(f'Decrypting files in folder {_local}: ({len(_files)} files)')
         for name in _files:
             localfile = _local / name
             localpgpfile = (_local / '.pgp') / name
