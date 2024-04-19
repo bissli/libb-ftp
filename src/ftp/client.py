@@ -3,12 +3,15 @@ import ftplib
 import logging
 import os
 import posixpath
+import random
 import re
 import shutil
 import stat
 import sys
+import tempfile
 import time
 from functools import wraps
+from io import BytesIO, IOBase, StringIO
 from pathlib import Path
 from typing import NamedTuple
 
@@ -164,6 +167,25 @@ def returntodir(func):
     return wrapper
 
 
+def streamtofile(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        for i, arg in enumerate(args):
+            if isinstance(arg, IOBase):
+                rf = os.path.join(tempfile.tempdir(), random.getrandbits(32))
+                with open(rf, 'w' if isinstance(arg, StringIO) else 'wb') as f:
+                    f.write(arg.read())
+                args[i] = f
+        for k, v in kwargs.items():
+            if isinstance(v, IOBase):
+                rf = os.path.join(tempfile.tempdir(), random.getrandbits(32))
+                with open(rf, 'w' if isinstance(arg, StringIO) else 'wb') as f:
+                    f.write(arg.read())
+                kwargs[k] = f
+        return func(*args, **kwargs)
+    return wrapper
+
+
 @returntodir
 def sync_directory(cn, options, files, _local: Path = None, _remote: str = None):
     """Sync a remote FTP directory to a local directory recursively
@@ -266,18 +288,20 @@ class FtpConnection:
     def getascii(self, remotefile, localfile):
         """Get a file in ASCII (text) mode"""
         with Path(localfile).open('w') as f:
-            self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(f"{line}\n"))
+            self.ftp.retrlines(f'RETR {as_posix(remotefile)}', lambda line: f.write(f'{line}\n'))
 
     def getbinary(self, remotefile, localfile):
         """Get a file in binary mode"""
         with Path(localfile).open('wb') as f:
             self.ftp.retrbinary(f'RETR {as_posix(remotefile)}', f.write)
 
+    @streamtofile
     def putascii(self, localfile, remotefile):
         """Put a file in ASCII (text) mode"""
         with Path(localfile).open('rb') as f:
             self.ftp.storlines(f'STOR {as_posix(remotefile)}', f)
 
+    @streamtofile
     def putbinary(self, localfile, remotefile):
         """Put a file in binary mode"""
         with Path(localfile).open('rb') as f:
@@ -341,10 +365,12 @@ class SecureFtpConnection:
         """Get a file in binary mode"""
         self.ftp.get(as_posix(remotefile), localfile)
 
+    @streamtofile
     def putascii(self, localfile, remotefile):
         """Put a file in ASCII (text) mode"""
         self.ftp.put(localfile, as_posix(remotefile))
 
+    @streamtofile
     def putbinary(self, localfile, remotefile):
         """Put a file in binary mode"""
         self.ftp.put(localfile, as_posix(remotefile))
