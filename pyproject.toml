@@ -10,8 +10,8 @@ packages = [{ include = "ftp", from = "src" }]
 python = "~3.11"
 
 paramiko = "*"
-libb-date = { git = "https://github.com/bissli/libb-date" }
-libb-util = { git = "https://github.com/bissli/libb-util" }
+libb-date = { git = "https://github.com/bissli/libb-date", rev = "master" }
+libb-util = { git = "https://github.com/bissli/libb-util", rev = "master" }
 
 # == test
 asserts = { version = "*", optional = true }
@@ -19,7 +19,7 @@ docker = { version = "*", optional = true }
 pytest = { version = "*", optional = true }
 pytest-mock = { version = "*", optional = true }
 pytest-runner = { version = "*", optional = true }
-pdbpp = { git = "https://github.com/pdbpp/pdbpp", optional = true }
+pdbpp = { git = "https://github.com/pdbpp/pdbpp", optional = true, rev = "master" }
 
 [tool.poetry.extras]
 test = [
