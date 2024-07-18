@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{ include = "ftp", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "~3.11"
+python = "^3.9"
 
 paramiko = "*"
 opendate = "*"

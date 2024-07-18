@@ -10,6 +10,7 @@ import stat
 import sys
 import tempfile
 import time
+from abc import ABC, abstractmethod
 from functools import wraps
 from io import BytesIO, IOBase, StringIO
 from pathlib import Path
@@ -22,9 +23,10 @@ from libb import FileLike, load_options
 
 logger = logging.getLogger(__name__)
 
+
 import paramiko
 
-__all__ = ['connect', 'sync_site']
+__all__ = ['connect', 'sync_site', 'BaseConnection']
 
 
 class Entry(NamedTuple):
@@ -253,7 +255,50 @@ def as_posix(path):
     return str(path).replace(os.sep, '/')
 
 
-class FtpConnection:
+class BaseConnection(ABC):
+
+    @abstractmethod
+    def pwd(self):
+        pass
+
+    @abstractmethod
+    def cd(self, path):
+        pass
+
+    @abstractmethod
+    def dir(self, *args):
+        pass
+
+    @abstractmethod
+    def files(self):
+        pass
+
+    @abstractmethod
+    def getascii(self, remotefile, localfile):
+        pass
+
+    @abstractmethod
+    def getbinary(self, remotefile, localfile):
+        pass
+
+    @abstractmethod
+    def putascii(self, localfile, remotefile):
+        pass
+
+    @abstractmethod
+    def putbinary(self, localfile, remotefile):
+        pass
+
+    @abstractmethod
+    def delete(self, remotefile):
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+
+class FtpConnection(BaseConnection):
     """Wrapper around ftplib
     """
     def __init__(self, hostname, username, password, tzinfo=LCL):
@@ -268,7 +313,7 @@ class FtpConnection:
         """Change the working directory"""
         return self.ftp.cwd(as_posix(path))
 
-    def dir(self, sort=False):
+    def dir(self, sort=False) -> list[Entry]:
         """Return a directory listing as an array of lines"""
         lines = []
         self.ftp.dir(lines.append)
@@ -315,7 +360,7 @@ class FtpConnection:
             self.ftp.close()
 
 
-class SecureFtpConnection:
+class SecureFtpConnection(BaseConnection):
 
     def __init__(self, hostname, username, password, port=22, tzinfo=LCL,
                  allow_agent=False, look_for_keys=False):
@@ -338,9 +383,9 @@ class SecureFtpConnection:
         """Change the working directory"""
         return self.ftp.chdir(as_posix(path))
 
-    def dir(self, sort=False):
+    def dir(self, sort=False) -> list[Entry]:
         """Return a directory listing as an array of lines"""
-        files = self.ftp.listdir_attr()
+        files = self.ftp.listdir_attr()  # paramiko.SFTPAttributes
         entries = []
         for f in files:
             entry = Entry(f.longname,
@@ -383,12 +428,6 @@ class SecureFtpConnection:
             self.ftp.close()
             self.ssh.close()
 
-
-class SslFtpConnection:
-    """Placeholder FTP connection for sites that use SSL"""
-
-    def __init__(self):
-        raise NotImplementedError
 
 
 if __name__ == '__main__':
