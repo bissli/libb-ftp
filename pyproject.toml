@@ -11,7 +11,7 @@ python = "^3.9"
 
 paramiko = "*"
 opendate = "*"
-libb-util = { git = "https://github.com/bissli/libb-util", rev = "master" }
+libb-util = { git = "https://github.com/bissli/libb-util" }
 
 # == test
 asserts = { version = "*", optional = true }
@@ -19,13 +19,11 @@ docker = { version = "*", optional = true }
 pytest = { version = "*", optional = true }
 pytest-mock = { version = "*", optional = true }
 pytest-runner = { version = "*", optional = true }
-pdbpp = { git = "https://github.com/pdbpp/pdbpp", optional = true, rev = "master" }
 
 [tool.poetry.extras]
 test = [
   "asserts",
   "docker",
-  "pdbpp",
   "pytest",
   "pytest-mock",
   "pytest-runner",
