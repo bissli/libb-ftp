@@ -230,7 +230,7 @@ def sync_file(cn, options, entry, _local: Path, _remote: str):
         Path(os.path.split(localfile)[0]).mkdir(parents=True)
     if not options.nocopy:
         cn.getbinary(entry.name, localfile)
-        mtime = time.mktime(entry.datetime.timetuple())
+        mtime = int(DateTime(*entry.datetime.timetuple()[:7]).epoch())
         try:
             os.utime(localfile, (mtime, mtime))
         except OSError:
