@@ -26,7 +26,12 @@ logger = logging.getLogger(__name__)
 
 import paramiko
 
-__all__ = ['connect', 'sync_site', 'BaseConnection']
+__all__ = [
+    'connect',
+    'connectmanager',
+    'sync_site',
+    'BaseConnection',
+]
 
 
 class Entry(NamedTuple):
@@ -52,7 +57,7 @@ FTP_DIR_RE = (
 
 
 @load_options(cls=FtpOptions)
-def connect(options:FtpOptions = None, config=None, **kw):
+def connect(options: FtpOptions = None, config=None, **kw):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
 
@@ -92,6 +97,31 @@ def connect(options:FtpOptions = None, config=None, **kw):
     if options.remotedir:
         cn.cd(options.remotedir)
     return cn
+
+
+@contextlib.contextmanager
+@load_options(cls=FtpOptions)
+def connectmanager(options: FtpOptions = None, config=None, **kw):
+    """Factory function to connect to a site. Add in each site that
+    needs to be synced.
+
+    opts:
+        - Options configuration object
+        - Kwargs of parameters
+        - Sitename string and config module path (i.e. foo.bar.ftp)
+
+    return:
+        The FTP object, else raise exception
+
+    note: having trouble with SSL auth?  test with ossl command:
+    openssl s_client -starttls ftp -connect host.name:port
+    """
+    cn = connect(options, config, **kw)
+    yield cn
+    try:
+        cn.close()
+    except:
+        pass
 
 
 def parse_ftp_dir_entry(line, tzinfo):
@@ -141,7 +171,7 @@ def sync_site(options=None, config=None, **kw):
     """
     logger.info(f'Syncing FTP site for {options.sitename or ""}')
     files = []
-    if cn := connect(options, config):
+    with connectmanager(options, config) as cn:
         sync_directory(cn, options, files)
         logger.info(
             '%d copied, %d decrypted, %d skipped, %d ignored',
