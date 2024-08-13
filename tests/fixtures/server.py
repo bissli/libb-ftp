@@ -18,6 +18,18 @@ from tests import config
 logger = logging.getLogger(__name__)
 
 
+def remove_files(path):
+    for file in os.scandir(path):
+        os.unlink(file.path)
+
+
+@pytest.fixture
+def clean_ftp_mount():
+    remove_files(config.mountdir)
+    yield
+    remove_files(config.mountdir)
+
+
 @pytest.fixture(scope='session')
 def ftp_docker(request):
     client = docker.from_env()
@@ -33,7 +45,7 @@ def ftp_docker(request):
             f'{port}/tcp': (config.vendor.FOO.ftp.hostname, f'{port}/tcp')
             for port in [20, 21]+list(range(40000,40010))
             },
-        volumes={config.tmpdir.dir: {'bind': '/data', 'mode': 'rw'}},
+        volumes={config.mountdir: {'bind': '/data', 'mode': 'rw'}},
         detach=True,
         remove=True,
     )
@@ -91,7 +103,7 @@ class MockFTPConnection(BaseConnection):
     getbinary = getascii
 
     def putascii(self, f: IOBase, *_):
-        pass
+        self._set_files
 
     putbinary = putascii
 
@@ -110,6 +122,6 @@ def as_posix(path):
     return str(path).replace(os.sep, '/')
 
 
-@pytest.fixture()
+@pytest.fixture
 def ftp_mock():
     return MockFTPConnection()

@@ -43,3 +43,4 @@ poetry.lock
 .envrc
 TODO.*
 *.pkl
+.aider*

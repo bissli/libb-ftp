@@ -26,7 +26,12 @@ logger = logging.getLogger(__name__)
 
 import paramiko
 
-__all__ = ['connect', 'sync_site', 'BaseConnection']
+__all__ = [
+    'connect',
+    'connectmanager',
+    'sync_site',
+    'BaseConnection',
+]
 
 
 class Entry(NamedTuple):
@@ -52,7 +57,7 @@ FTP_DIR_RE = (
 
 
 @load_options(cls=FtpOptions)
-def connect(options:FtpOptions = None, config=None, **kw):
+def connect(options: FtpOptions = None, config=None, **kw):
     """Factory function to connect to a site. Add in each site that
     needs to be synced.
 
@@ -92,6 +97,31 @@ def connect(options:FtpOptions = None, config=None, **kw):
     if options.remotedir:
         cn.cd(options.remotedir)
     return cn
+
+
+@contextlib.contextmanager
+@load_options(cls=FtpOptions)
+def connectmanager(options: FtpOptions = None, config=None, **kw):
+    """Factory function to connect to a site. Add in each site that
+    needs to be synced.
+
+    opts:
+        - Options configuration object
+        - Kwargs of parameters
+        - Sitename string and config module path (i.e. foo.bar.ftp)
+
+    return:
+        The FTP object, else raise exception
+
+    note: having trouble with SSL auth?  test with ossl command:
+    openssl s_client -starttls ftp -connect host.name:port
+    """
+    cn = connect(options, config, **kw)
+    yield cn
+    try:
+        cn.close()
+    except:
+        pass
 
 
 def parse_ftp_dir_entry(line, tzinfo):
@@ -141,7 +171,7 @@ def sync_site(options=None, config=None, **kw):
     """
     logger.info(f'Syncing FTP site for {options.sitename or ""}')
     files = []
-    if cn := connect(options, config):
+    with connectmanager(options, config) as cn:
         sync_directory(cn, options, files)
         logger.info(
             '%d copied, %d decrypted, %d skipped, %d ignored',
@@ -428,6 +458,75 @@ class SecureFtpConnection(BaseConnection):
             self.ftp.close()
             self.ssh.close()
 
+
+class TlsFtpConnection:
+    """FTP connection for sites that use SSL
+
+    from sqlalchemy-media (update to match above aproach)
+
+    :param hostname: FTP server hostname or instance of :class:`ftplib.FTP`.
+                     Note if pass the instance of :class:`ftplib.FTP` do not need to
+                     set `username`, `password`, `passive`, `secure`, `kwargs` arguments.
+    :param root_path: Root working directory path on FTP server.
+    :param base_url: First part of URL that using to locate file access URL.
+    :param username: FTP server username.
+    :param password: FTP server password.
+    :param passive: Enable passive FTP mode.
+                    (How it works? https://www.ietf.org/rfc/rfc959.txt,
+                                   http://slacksite.com/other/ftp.html)
+    :param secure: Enable secure TLS connection.
+    :param kwargs: Additional arguments to FTP client
+                   (for :class:`ftplib.FTP` or :class:`ftplib.FTP_TLS` based
+                   on `secure` argument status)
+    """
+    def __init__(self, hostname, root_path, base_url, username=None, password=None, passive=True, **kwargs):
+        self.ftp_client = ftplib.FTP_TLS(host=hostname, user=username, passwd=password, **kwargs)
+        self.ftp_client.prot_p()
+        self.ftp_client.set_pasv(passive)
+        self.root_path = root_path
+        self.base_url = base_url.rstrip('/')
+
+    def _get_remote_path(self, filename):
+        return os.path.join(self.root_path, filename)
+
+    def cd(self, remote):
+        remote_dirs = remote.split('/')
+        for directory in remote_dirs:
+            try:
+                self.ftp_client.cwd(directory)
+            except Exception:
+                # Try to make directory if not exists
+                self.ftp_client.mkd(directory)
+                self.ftp_client.cwd(directory)
+
+    def put(self, filename: str, stream: FileLike) -> int:
+        remote_filename = self._get_remote_path(filename)
+        remote_dir = os.path.dirname(remote_filename)
+        remote_file = os.path.basename(remote_filename)
+        current = self.ftp_client.pwd()
+        self.cd(remote_dir)
+
+        try:
+            self.ftp_client.storbinary(f'STOR {remote_file}', stream)
+            size = self.ftp_client.size(remote_file)
+        finally:
+            stream.close()
+            self.ftp_client.cwd(current)
+        return size
+
+    def delete(self, filename: str) -> None:
+        remote_filename = self._get_remote_path(filename)
+        self.ftp_client.delete(remote_filename)
+
+    def open(self, filename: str, mode: str = 'rb'):
+        remote_filename = self._get_remote_path(filename)
+        file_bytes = BytesIO()
+        self.ftp_client.retrbinary(f'RETR {remote_filename}', file_bytes.write)
+        file_bytes.seek(0)
+        return file_bytes
+
+    def locate(self, attachment) -> str:
+        return f'{self.base_url}/{attachment.path}'
 
 
 if __name__ == '__main__':
