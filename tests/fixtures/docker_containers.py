@@ -1,30 +1,34 @@
 import logging
 import os
-import sys
+import shutil
+import subprocess
+import tempfile
 import time
-from collections import deque
-from io import IOBase
 
 import docker
 import pytest
-
-from ftp import BaseConnection
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.append('..')
 from tests import config
 
 logger = logging.getLogger(__name__)
 
 
-def remove_files(path):
+def remove_files(path: str) -> None:
+    """Remove all files from a directory.
+
+    Parameters
+        path: Directory path to clean
+    """
     for file in os.scandir(path):
         os.unlink(file.path)
 
 
 @pytest.fixture
 def clean_ftp_mount():
+    """Clean the FTP mount directory before and after tests.
+
+    Ensures each test starts with a clean FTP mount directory
+    and cleans up after completion.
+    """
     remove_files(config.mountdir)
     yield
     remove_files(config.mountdir)
@@ -32,6 +36,10 @@ def clean_ftp_mount():
 
 @pytest.fixture(scope='session')
 def ftp_docker(request):
+    """Docker fixture for FTP server using garethflowers/ftp-server.
+
+    Creates an FTP server container for testing regular FTP connections.
+    """
     client = docker.from_env()
     container = client.containers.run(
         image='garethflowers/ftp-server',
@@ -56,7 +64,7 @@ def ftp_docker(request):
 @pytest.fixture(scope='session')
 def sftp_docker(request):
     """Docker fixture for SFTP server using atmoz/sftp Debian image.
-    
+
     Creates a secure SFTP server container for testing secure FTP connections.
     Uses the same credentials as the FTP fixture but on port 22.
     """
@@ -75,39 +83,47 @@ def sftp_docker(request):
     request.addfinalizer(container.stop)
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture
 def sftp_docker_with_key(request, ssh_key_pair):
     """Docker fixture for SFTP server with SSH key authentication enabled.
-    
+
     Creates a secure SFTP server container that accepts the provided SSH key
     for authentication testing.
     """
-    import subprocess
-    import tempfile
-    
     client = docker.from_env()
-    
-    # Create a temporary directory with correct permissions for the SFTP user
+
     sftp_data_dir = tempfile.mkdtemp(prefix='sftp_test_')
-    
+    logger.debug(f'Created temp SFTP data dir {sftp_data_dir}')
+
+    ssh_keys_dir = tempfile.mkdtemp(prefix='sftp_ssh_keys_')
+    logger.debug(f'Created temp SSH keys dir {ssh_keys_dir}')
+
+    username = config.vendor.FOO.ftp.username
+    authorized_key_path = os.path.join(ssh_keys_dir, f'{username}.pub')
+    shutil.copy2(ssh_key_pair['public_key_path'], authorized_key_path)
+
     # Set ownership to UID 1001 (the SFTP user) - this might require sudo on some systems
     # For testing purposes, make it world-writable as a fallback
     try:
         subprocess.run(['chown', '1001:1001', sftp_data_dir], check=True, stderr=subprocess.DEVNULL)
+        subprocess.run(['chown', '1001:1001', ssh_keys_dir], check=True, stderr=subprocess.DEVNULL)
+        subprocess.run(['chown', '1001:1001', authorized_key_path], check=True, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fallback: make directory world-writable if chown fails
+        logger.debug('chown failed, falling back to chmod permissions')
         os.chmod(sftp_data_dir, 0o777)
-    
-    # Create volume mapping for SSH public key and data directory
+        os.chmod(ssh_keys_dir, 0o755)
+        os.chmod(authorized_key_path, 0o644)
+
+    # Create volume mapping for SSH keys and data directory
     volumes = {
-        sftp_data_dir: {'bind': f'/home/{config.vendor.FOO.ftp.username}/upload', 'mode': 'rw'},
-        ssh_key_pair['public_key_path']: {'bind': f'/home/{config.vendor.FOO.ftp.username}/.ssh/keys/test_key.pub', 'mode': 'ro'}
+        sftp_data_dir: {'bind': f'/home/{username}/upload', 'mode': 'rw'},
+        ssh_keys_dir: {'bind': f'/home/{username}/.ssh/keys', 'mode': 'ro'}
     }
-    
+
     container = client.containers.run(
         image='atmoz/sftp',
         auto_remove=True,
-        command=f'{config.vendor.FOO.ftp.username}::1001::upload',  # No password, key auth only
+        command=f'{username}::1001::upload',  # No password, key auth only
         name='sftp_server_with_key',
         ports={'22/tcp': (config.vendor.FOO.ftp.hostname, '2222')},
         volumes=volumes,
@@ -115,94 +131,11 @@ def sftp_docker_with_key(request, ssh_key_pair):
         remove=True,
     )
     time.sleep(5)
-    
+
     def cleanup():
         container.stop()
-        # Clean up temporary directory
-        import shutil
         shutil.rmtree(sftp_data_dir, ignore_errors=True)
-    
+        shutil.rmtree(ssh_keys_dir, ignore_errors=True)
+
     request.addfinalizer(cleanup)
     return container
-
-
-class MockFTPConnection(BaseConnection):
-    """Mock FTP lib for testing
-    """
-    def __init__(self):
-        self._files: list = None
-        self._size: float = 0
-        self._dirlist: list = []
-        self._exists: bool = True
-        self._stack = deque()
-        self._contents: str = ''
-
-    def _set_files(self, files):
-        self._files = files
-
-    def _set_dirlist(self, dirlist):
-        self._dirlist = dirlist
-
-    def _set_exists(self, exists):
-        self._exists = exists
-
-    def _set_contents(self, contents):
-        self._contents = contents
-
-    def pwd(self):
-        return '/'.join(self._stack)
-
-    def cd(self, path: str):
-        path = as_posix(path)
-        if not self._exists:
-            self._exists = True
-            raise Exception("Doesn't exist")
-        for dir_ in path.split('/'):
-            if dir_ == '..':
-                self._stack.pop()
-            else:
-                self._stack.append(dir_)
-
-    def dir(self, callback):
-        for dir_ in self._dirlist:
-            callback(dir_)
-
-    def files(self):
-        return self._files
-
-    def getascii(self, remotefile, localfile, callback):
-        callback(self._contents)
-
-    getbinary = getascii
-
-    def putascii(self, f: IOBase, *_):
-        self._set_files
-
-    putbinary = putascii
-
-    def delete(self, remotefile):
-        if not self._exists:
-            raise Exception("Doesn't exist")
-        return True
-
-    def close(self):
-        return True
-
-
-def as_posix(path):
-    if not path:
-        return path
-    return str(path).replace(os.sep, '/')
-
-
-@pytest.fixture
-def ftp_mock():
-    return MockFTPConnection()
-
-
-def test_sftp_docker_fixture(sftp_docker):
-    """Test that the SFTP Docker fixture starts correctly.
-    
-    Verifies the SFTP server container is running and accessible.
-    """
-    assert sftp_docker is None  # fixture doesn't return anything, just starts container
