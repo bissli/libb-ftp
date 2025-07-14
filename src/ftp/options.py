@@ -25,17 +25,23 @@ def rename_pgp():
 @dataclass
 class FtpOptions(ConfigOptions):
 
-    # sitename for repr
+    # Sitename for repr
     sitename: str = None
 
-    # connetion required
+    # Connetion required
     hostname: str = None
     username: str = None
     password: str = None
     secure: bool = False
     port: int = 22
 
-    # connection optional
+    # SSH key authentication (for secure connections)
+    ssh_key_filename: str | Path = None
+    ssh_key_content: str = None
+    ssh_key_passphrase: str = None
+    ssh_key_type: str = 'rsa'
+
+    # Connection optional
     pgp_extension: str = None
     ignore_re: str = None
     is_encrypted: callable = field(default_factory=is_encrypted, repr=False)
@@ -43,7 +49,7 @@ class FtpOptions(ConfigOptions):
     localdir: Path = tmpdir.dir
     remotedir: str = '/'
 
-    # for sync
+    # For sync
     nocopy: bool = False
     nodecryptlocal: bool = False
     ignorelocal:bool = False

@@ -16,6 +16,8 @@ from io import BytesIO, IOBase, StringIO
 from pathlib import Path
 from typing import NamedTuple
 
+import paramiko
+
 from date import LCL, DateTime
 from ftp.options import FtpOptions
 from ftp.pgp import decrypt_pgp_file
@@ -23,8 +25,6 @@ from libb import FileLike, load_options
 
 logger = logging.getLogger(__name__)
 
-
-import paramiko
 
 __all__ = [
     'connect',
@@ -79,7 +79,11 @@ def connect(options: FtpOptions = None, config=None, **kw):
                 cn = SecureFtpConnection(options.hostname, username=options.username,
                                          password=options.password,
                                          port=options.port,
-                                         tzinfo=options.tzinfo)
+                                         tzinfo=options.tzinfo,
+                                         ssh_key_filename=options.ssh_key_filename,
+                                         ssh_key_content=options.ssh_key_content,
+                                         ssh_key_type=options.ssh_key_type,
+                                         ssh_key_passphrase=options.ssh_key_passphrase)
                 if not cn:
                     raise paramiko.SSHException
             else:
@@ -390,18 +394,78 @@ class FtpConnection(BaseConnection):
             self.ftp.close()
 
 
+def _load_ssh_key(ssh_key_filename: str | Path | None = None,
+                  ssh_key_content: str | None = None,
+                  ssh_key_type: str = 'rsa',
+                  ssh_key_passphrase: str | None = None) -> object | None:
+    """Load SSH key from file or content string.
+
+    Parameters
+        ssh_key_filename: Path to SSH private key file
+        ssh_key_content: SSH private key content as string
+        ssh_key_type: Type of SSH key ('rsa', 'dsa', 'ecdsa', 'ed25519')
+        ssh_key_passphrase: Optional passphrase for encrypted private keys
+
+    Returns
+        Paramiko key object or None if no key provided
+    """
+    if not (ssh_key_filename or ssh_key_content):
+        return
+
+    key_classes = {
+        'rsa': paramiko.RSAKey,
+        'dsa': paramiko.DSSKey,
+        'ecdsa': paramiko.ECDSAKey,
+        'ed25519': paramiko.Ed25519Key
+    }
+    key_class = key_classes.get(ssh_key_type.lower(), paramiko.RSAKey)
+
+    try:
+        if ssh_key_content:
+            pkey = key_class.from_private_key(StringIO(ssh_key_content),
+                                              password=ssh_key_passphrase)
+            logger.debug(f'Loaded {ssh_key_type} SSH key from content')
+            return pkey
+        elif ssh_key_filename:
+            pkey = key_class.from_private_key_file(str(ssh_key_filename),
+                                                   password=ssh_key_passphrase)
+            logger.debug(f'Loaded {ssh_key_type} SSH key from file: {ssh_key_filename}')
+            return pkey
+    except Exception as e:
+        logger.error(f'Failed to load SSH key: {e}')
+        raise
+
+
 class SecureFtpConnection(BaseConnection):
 
-    def __init__(self, hostname, username, password, port=22, tzinfo=LCL,
-                 allow_agent=False, look_for_keys=False):
+    def __init__(self, hostname, username, password=None, port=22, tzinfo=LCL,
+                 allow_agent=False, look_for_keys=False, ssh_key_filename=None,
+                 ssh_key_content=None, ssh_key_type='rsa', ssh_key_passphrase=None):
+
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh.connect(hostname,
-                         username=username,
-                         password=password,
-                         port=port,
-                         allow_agent=allow_agent,
-                         look_for_keys=look_for_keys)
+
+        connect_kwargs = {
+            'hostname': hostname,
+            'username': username,
+            'port': port,
+            'allow_agent': allow_agent,
+            'look_for_keys': look_for_keys,
+            }
+
+        pkey = _load_ssh_key(ssh_key_filename, ssh_key_content, ssh_key_type, ssh_key_passphrase)
+
+        if pkey:
+            connect_kwargs['pkey'] = pkey
+            logger.debug(f'Using SSH key authentication for {username}@{hostname}')
+        elif password:
+            connect_kwargs['password'] = password
+            logger.debug(f'Using password authentication for {username}@{hostname}')
+        else:
+            raise ValueError('Either password or SSH key must be provided')
+
+        self.ssh.connect(**connect_kwargs)
+        logger.debug(f'SSH connection established to {hostname}:{port}')
         self.ftp = self.ssh.open_sftp()
         self._tzinfo = tzinfo
 
