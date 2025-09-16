@@ -414,7 +414,6 @@ def _load_ssh_key(ssh_key_filename: str | Path | None = None,
 
     key_classes = {
         'rsa': paramiko.RSAKey,
-        'dsa': paramiko.DSSKey,
         'ecdsa': paramiko.ECDSAKey,
         'ed25519': paramiko.Ed25519Key
     }
