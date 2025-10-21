@@ -1,34 +1,81 @@
+import contextlib
+from functools import wraps
+
 import pytest
+from tests import config
 
 from libb import Setting
 
 
-def configure_sftp_ssh_key(ssh_key_filename: str = None, ssh_key_content: str = None,
-                           ssh_key_type: str = 'rsa') -> None:
-    """Configure SFTP connection to use SSH key authentication.
-
-    Updates the vendor.FOO.sftp configuration to use SSH key authentication
-    instead of password authentication.
+@contextlib.contextmanager
+def temporary_config(config_path, **settings):
+    """Temporarily modify config settings and restore them after.
 
     Parameters
-        ssh_key_filename: Path to SSH private key file
-        ssh_key_content: SSH private key content as string
-        ssh_key_type: Type of SSH key ('rsa', 'dsa', 'ecdsa', 'ed25519')
+        config_path: Dot-separated path to config object (e.g., 'vendor.FOO.sftp')
+        **settings: Key-value pairs of settings to temporarily modify
     """
-    from tests import config
+    parts = config_path.split('.')
+    obj = config
+    for part in parts:
+        obj = getattr(obj, part)
 
     Setting.unlock()
+    
+    originals = {key: obj.get(key) for key in settings}
 
-    config.vendor.FOO.sftp.ssh_key_filename = ssh_key_filename
-    config.vendor.FOO.sftp.ssh_key_content = ssh_key_content
-    config.vendor.FOO.sftp.ssh_key_type = ssh_key_type
-    config.vendor.FOO.sftp.password = None  # Use key auth, not password
+    try:
+        for key, value in settings.items():
+            setattr(obj, key, value)
+        Setting.lock()
+        yield
+    finally:
+        Setting.unlock()
+        for key, value in originals.items():
+            setattr(obj, key, value)
+        Setting.lock()
 
-    Setting.lock()
+
+def with_temporary_config(config_path, **settings):
+    """Decorator to temporarily modify config settings for a test function.
+
+    Parameters
+        config_path: Dot-separated path to config object
+        **settings: Key-value pairs of settings to temporarily modify
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with temporary_config(config_path, **settings):
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @pytest.fixture
-def configure_sftp_ssh_key_file(ssh_key_pair) -> None:
+def sftp_config():
+    """Fixture providing temporary SFTP config modification.
+
+    Returns callable that accepts kwargs for config modification.
+    """
+    def modifier(**settings):
+        return temporary_config('vendor.FOO.sftp', **settings)
+    return modifier
+
+
+@pytest.fixture
+def ftp_config():
+    """Fixture providing temporary FTP config modification.
+
+    Returns callable that accepts kwargs for config modification.
+    """
+    def modifier(**settings):
+        return temporary_config('vendor.FOO.ftp', **settings)
+    return modifier
+
+
+@pytest.fixture
+def configure_sftp_ssh_key_file(ssh_key_pair, sftp_config):
     """Configure SFTP to use SSH key file authentication.
 
     Sets up SFTP configuration to authenticate using an SSH private key file
@@ -36,15 +83,21 @@ def configure_sftp_ssh_key_file(ssh_key_pair) -> None:
 
     Parameters
         ssh_key_pair: SSH key pair fixture providing key paths and content
+        sftp_config: Fixture for temporary SFTP config modification
     """
-    configure_sftp_ssh_key(
+    with sftp_config(
         ssh_key_filename=ssh_key_pair['private_key_path'],
-        ssh_key_type=ssh_key_pair['key_type']
-    )
+        ssh_key_type=ssh_key_pair['key_type'],
+        password=None,
+        port=2223,
+        allow_agent=False,
+        look_for_keys=False
+    ):
+        yield
 
 
 @pytest.fixture
-def configure_sftp_ssh_key_content(ssh_key_pair) -> None:
+def configure_sftp_ssh_key_content(ssh_key_pair, sftp_config):
     """Configure SFTP to use SSH key content authentication.
 
     Sets up SFTP configuration to authenticate using SSH private key content
@@ -52,8 +105,14 @@ def configure_sftp_ssh_key_content(ssh_key_pair) -> None:
 
     Parameters
         ssh_key_pair: SSH key pair fixture providing key paths and content
+        sftp_config: Fixture for temporary SFTP config modification
     """
-    configure_sftp_ssh_key(
+    with sftp_config(
         ssh_key_content=ssh_key_pair['private_key_content'],
-        ssh_key_type=ssh_key_pair['key_type']
-    )
+        ssh_key_type=ssh_key_pair['key_type'],
+        password=None,
+        port=2223,
+        allow_agent=False,
+        look_for_keys=False
+    ):
+        yield

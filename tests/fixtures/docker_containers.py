@@ -96,7 +96,7 @@ def sftp_docker_with_key(request, ssh_key_pair):
     """Docker fixture for SFTP server with SSH key authentication enabled.
 
     Creates a secure SFTP server container that accepts the provided SSH key
-    for authentication testing.
+    for authentication testing. Uses port 2223 to avoid conflicts.
     """
     client = docker.from_env()
 
@@ -110,8 +110,6 @@ def sftp_docker_with_key(request, ssh_key_pair):
     authorized_key_path = os.path.join(ssh_keys_dir, f'{username}.pub')
     shutil.copy2(ssh_key_pair['public_key_path'], authorized_key_path)
 
-    # Set ownership to UID 1001 (the SFTP user) - this might require sudo on some systems
-    # For testing purposes, make it world-writable as a fallback
     try:
         subprocess.run(['chown', '1001:1001', sftp_data_dir], check=True, stderr=subprocess.DEVNULL)
         subprocess.run(['chown', '1001:1001', ssh_keys_dir], check=True, stderr=subprocess.DEVNULL)
@@ -122,7 +120,6 @@ def sftp_docker_with_key(request, ssh_key_pair):
         pathlib.Path(ssh_keys_dir).chmod(0o755)
         pathlib.Path(authorized_key_path).chmod(0o644)
 
-    # Create volume mapping for SSH keys and data directory
     volumes = {
         sftp_data_dir: {'bind': f'/home/{username}/upload', 'mode': 'rw'},
         ssh_keys_dir: {'bind': f'/home/{username}/.ssh/keys', 'mode': 'ro'}
@@ -131,9 +128,9 @@ def sftp_docker_with_key(request, ssh_key_pair):
     container = client.containers.run(
         image='atmoz/sftp',
         auto_remove=True,
-        command=f'{username}::1001::upload',  # No password, key auth only
+        command=f'{username}::1001::upload',
         name='sftp_server_with_key',
-        ports={'22/tcp': (config.vendor.FOO.ftp.hostname, '2222')},
+        ports={'22/tcp': (config.vendor.FOO.ftp.hostname, '2223')},
         volumes=volumes,
         detach=True,
         remove=True,

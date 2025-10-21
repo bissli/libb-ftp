@@ -80,6 +80,8 @@ def connect(options: FtpOptions = None, config=None, **kw):
                                          password=options.password,
                                          port=options.port,
                                          tzinfo=options.tzinfo,
+                                         allow_agent=options.allow_agent,
+                                         look_for_keys=options.look_for_keys,
                                          ssh_key_filename=options.ssh_key_filename,
                                          ssh_key_content=options.ssh_key_content,
                                          ssh_key_type=options.ssh_key_type,
@@ -276,7 +278,7 @@ def sync_file(cn, options, entry, _local: Path, _remote: str):
         decrypt_pgp_file(options, entry.name, newname, _local)
         # keep a copy for stat comparison above but move to .pgp dir so it doesn't clutter the main directory
         with contextlib.suppress(Exception):
-            os.makedirs(os.path.split(localpgpfile)[0])
+            Path(os.path.split(localpgpfile)[0]).mkdir(parents=True)
         shutil.move(localfile, localpgpfile)
         options.stats['decrypted'] += 1
         filename = _local / newname
@@ -438,7 +440,7 @@ def _load_ssh_key(ssh_key_filename: str | Path | None = None,
 class SecureFtpConnection(BaseConnection):
 
     def __init__(self, hostname, username, password=None, port=22, tzinfo=LCL,
-                 allow_agent=False, look_for_keys=False, ssh_key_filename=None,
+                 allow_agent=True, look_for_keys=True, ssh_key_filename=None,
                  ssh_key_content=None, ssh_key_type='rsa', ssh_key_passphrase=None):
 
         self.ssh = paramiko.SSHClient()
@@ -456,12 +458,15 @@ class SecureFtpConnection(BaseConnection):
 
         if pkey:
             connect_kwargs['pkey'] = pkey
-            logger.debug(f'Using SSH key authentication for {username}@{hostname}')
-        elif password:
+            logger.debug(f'Using explicit SSH key authentication for {username}@{hostname}')
+        if password:
             connect_kwargs['password'] = password
             logger.debug(f'Using password authentication for {username}@{hostname}')
-        else:
-            raise ValueError('Either password or SSH key must be provided')
+        if not pkey and not password:
+            if allow_agent or look_for_keys:
+                logger.debug(f'No explicit credentials provided, using SSH agent or discovered keys for {username}@{hostname}')
+            else:
+                raise ValueError('Either password, SSH key, allow_agent=True, or look_for_keys=True must be provided')
 
         self.ssh.connect(**connect_kwargs)
         logger.debug(f'SSH connection established to {hostname}:{port}')
@@ -564,8 +569,8 @@ class TlsFtpConnection:
 
     def put(self, filename: str, stream: FileLike) -> int:
         remote_filename = self._get_remote_path(filename)
-        remote_dir = os.path.dirname(remote_filename)
-        remote_file = os.path.basename(remote_filename)
+        remote_dir = Path(remote_filename).parent
+        remote_file = Path(remote_filename).name
         current = self.ftp_client.pwd()
         self.cd(remote_dir)
 

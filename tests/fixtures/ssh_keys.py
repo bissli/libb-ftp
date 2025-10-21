@@ -1,4 +1,4 @@
-import os
+import pathlib
 import tempfile
 
 import paramiko
@@ -36,5 +36,5 @@ def ssh_key_pair():
         'key_type': 'rsa'
         }
 
-    os.unlink(private_key_path)
-    os.unlink(public_key_path)
+    pathlib.Path(private_key_path).unlink()
+    pathlib.Path(public_key_path).unlink()

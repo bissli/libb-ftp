@@ -40,8 +40,8 @@ class FtpOptions(ConfigOptions):
     ssh_key_content: str = None
     ssh_key_passphrase: str = None
     ssh_key_type: str = 'rsa'
-    allow_agent: bool = False
-    look_for_keys: bool = False
+    allow_agent: bool = True
+    look_for_keys: bool = True
 
     # Connection optional
     pgp_extension: str = None

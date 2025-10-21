@@ -6,6 +6,7 @@ from tests import config
 from tests.fixtures.test_data import make_binary_file, make_text_file
 
 import ftp
+import pathlib
 
 
 def test_sftp_pwd_with_ssh_key_file(clean_ftp_mount, sftp_docker_with_key, configure_sftp_ssh_key_file):
@@ -84,7 +85,7 @@ def test_sftp_dir_listing_with_ssh_key(clean_ftp_mount, sftp_docker_with_key, co
     local_dir = os.path.join(config.tmpdir.dir, 'sftp_local_dir')
     local_file1 = os.path.join(local_dir, 'SftpLocalFile1.txt')
     local_file2 = os.path.join(local_dir, 'SftpLocalFile2.txt')
-    os.makedirs(local_dir, exist_ok=True)
+    pathlib.Path(local_dir).mkdir(exist_ok=True, parents=True)
     make_text_file(local_file1, 5)
     make_text_file(local_file2, 5)
 
