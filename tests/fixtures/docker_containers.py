@@ -8,6 +8,7 @@ import time
 import docker
 import pytest
 from tests import config
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def remove_files(path: str) -> None:
         path: Directory path to clean
     """
     for file in os.scandir(path):
-        os.unlink(file.path)
+        pathlib.Path(file.path).unlink()
 
 
 @pytest.fixture
@@ -69,6 +70,13 @@ def sftp_docker(request):
     Uses the same credentials as the FTP fixture but on port 22.
     """
     client = docker.from_env()
+
+    try:
+        subprocess.run(['chown', '1001:1001', config.mountdir], check=True, stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        logger.debug('chown failed, falling back to chmod permissions')
+        pathlib.Path(config.mountdir).chmod(0o777)
+
     container = client.containers.run(
         image='atmoz/sftp',
         auto_remove=True,
@@ -110,9 +118,9 @@ def sftp_docker_with_key(request, ssh_key_pair):
         subprocess.run(['chown', '1001:1001', authorized_key_path], check=True, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
         logger.debug('chown failed, falling back to chmod permissions')
-        os.chmod(sftp_data_dir, 0o777)
-        os.chmod(ssh_keys_dir, 0o755)
-        os.chmod(authorized_key_path, 0o644)
+        pathlib.Path(sftp_data_dir).chmod(0o777)
+        pathlib.Path(ssh_keys_dir).chmod(0o755)
+        pathlib.Path(authorized_key_path).chmod(0o644)
 
     # Create volume mapping for SSH keys and data directory
     volumes = {
