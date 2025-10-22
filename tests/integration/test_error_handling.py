@@ -120,18 +120,6 @@ def test_sftp_cd_invalid_directory(clean_ftp_mount, sftp_docker):
             sftpcn.cd('/nonexistent/directory/path')
 
 
-def test_sftp_no_authentication_credentials(clean_ftp_mount, sftp_docker, sftp_config):
-    """Verify SFTP connection fails without any authentication credentials.
-
-    Tests that attempting to connect without password or SSH key
-    raises an appropriate error.
-    """
-    with sftp_config(password=None, ssh_key_filename=None, ssh_key_content=None,
-                     allow_agent=False, look_for_keys=False):
-        with pytest.raises(ValueError):
-            ftp.connect('vendor.FOO.sftp', config)
-
-
 def test_ftp_wrong_password(clean_ftp_mount, ftp_docker, ftp_config):
     """Verify FTP authentication fails with incorrect password.
 

@@ -80,8 +80,6 @@ def connect(options: FtpOptions = None, config=None, **kw):
                                          password=options.password,
                                          port=options.port,
                                          tzinfo=options.tzinfo,
-                                         allow_agent=options.allow_agent,
-                                         look_for_keys=options.look_for_keys,
                                          ssh_key_filename=options.ssh_key_filename,
                                          ssh_key_content=options.ssh_key_content,
                                          ssh_key_type=options.ssh_key_type,
@@ -440,8 +438,12 @@ def _load_ssh_key(ssh_key_filename: str | Path | None = None,
 class SecureFtpConnection(BaseConnection):
 
     def __init__(self, hostname, username, password=None, port=22, tzinfo=LCL,
-                 allow_agent=True, look_for_keys=True, ssh_key_filename=None,
-                 ssh_key_content=None, ssh_key_type='rsa', ssh_key_passphrase=None):
+                 ssh_key_filename=None, ssh_key_content=None, ssh_key_type='rsa',
+                 ssh_key_passphrase=None):
+
+        pkey = _load_ssh_key(ssh_key_filename, ssh_key_content, ssh_key_type, ssh_key_passphrase)
+
+        allow_agent = look_for_keys = not (pkey or password)
 
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -452,24 +454,14 @@ class SecureFtpConnection(BaseConnection):
             'port': port,
             'allow_agent': allow_agent,
             'look_for_keys': look_for_keys,
-            }
-
-        pkey = _load_ssh_key(ssh_key_filename, ssh_key_content, ssh_key_type, ssh_key_passphrase)
+        }
 
         if pkey:
             connect_kwargs['pkey'] = pkey
-            logger.debug(f'Using explicit SSH key authentication for {username}@{hostname}')
         if password:
             connect_kwargs['password'] = password
-            logger.debug(f'Using password authentication for {username}@{hostname}')
-        if not pkey and not password:
-            if allow_agent or look_for_keys:
-                logger.debug(f'No explicit credentials provided, using SSH agent or discovered keys for {username}@{hostname}')
-            else:
-                raise ValueError('Either password, SSH key, allow_agent=True, or look_for_keys=True must be provided')
 
         self.ssh.connect(**connect_kwargs)
-        logger.debug(f'SSH connection established to {hostname}:{port}')
         self.ftp = self.ssh.open_sftp()
         self._tzinfo = tzinfo
 

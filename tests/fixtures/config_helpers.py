@@ -89,9 +89,7 @@ def configure_sftp_ssh_key_file(ssh_key_pair, sftp_config):
         ssh_key_filename=ssh_key_pair['private_key_path'],
         ssh_key_type=ssh_key_pair['key_type'],
         password=None,
-        port=2223,
-        allow_agent=False,
-        look_for_keys=False
+        port=2223
     ):
         yield
 
@@ -111,8 +109,6 @@ def configure_sftp_ssh_key_content(ssh_key_pair, sftp_config):
         ssh_key_content=ssh_key_pair['private_key_content'],
         ssh_key_type=ssh_key_pair['key_type'],
         password=None,
-        port=2223,
-        allow_agent=False,
-        look_for_keys=False
+        port=2223
     ):
         yield
