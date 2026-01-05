@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 import shutil
 import subprocess
 import tempfile
@@ -8,7 +9,6 @@ import time
 import docker
 import pytest
 from tests import config
-import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,43 @@ def ftp_docker(request):
     )
     time.sleep(5)
     request.addfinalizer(container.stop)
+
+
+@pytest.fixture(scope='session')
+def ftp_docker_nonstandard_port(request):
+    """Docker fixture for FTP server on non-standard port 2121.
+
+    Verifies that the port parameter is correctly passed through the FTP connection.
+    Uses different passive mode ports (40010-40019) to avoid collision with ftp_docker.
+    """
+    client = docker.from_env()
+    container = client.containers.run(
+        image='garethflowers/ftp-server',
+        auto_remove=True,
+        environment={
+            'FTP_USER': config.vendor.FOO.ftp.username,
+            'FTP_PASS': config.vendor.FOO.ftp.password,
+            'PASV_MIN_PORT': '40010',
+            'PASV_MAX_PORT': '40019',
+            },
+        name='ftp_server_nonstandard',
+        ports={
+            '21/tcp': (config.vendor.FOO.ftp.hostname, '2121'),
+            **{f'{port}/tcp': (config.vendor.FOO.ftp.hostname, f'{port}') for port in range(40010, 40020)},
+            },
+        volumes={config.mountdir: {'bind': '/data', 'mode': 'rw'}},
+        detach=True,
+        remove=True,
+    )
+    time.sleep(5)
+
+    def cleanup():
+        try:
+            container.stop()
+        except docker.errors.NotFound:
+            pass
+
+    request.addfinalizer(cleanup)
 
 
 @pytest.fixture(scope='session')

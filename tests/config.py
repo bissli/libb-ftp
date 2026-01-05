@@ -3,10 +3,11 @@ import os
 import shutil
 
 from libb import Setting
+import pathlib
 
 mountdir = os.path.join(tmpdir.dir, 'ftpmount')
 shutil.rmtree(mountdir, ignore_errors=True)
-os.makedirs(mountdir)
+pathlib.Path(mountdir).mkdir(parents=True)
 
 Setting.unlock()
 vendor = Setting()
@@ -16,6 +17,14 @@ vendor.FOO.ftp.password = 'bar'
 vendor.FOO.ftp.port = 21
 vendor.FOO.ftp.localdir = mountdir
 vendor.FOO.ftp.remotedir = '/'
+
+# FTP configuration on non-standard port (for port selection testing)
+vendor.FOO.ftp2121.hostname = '127.0.0.1'
+vendor.FOO.ftp2121.username = 'foo'
+vendor.FOO.ftp2121.password = 'bar'
+vendor.FOO.ftp2121.port = 2121
+vendor.FOO.ftp2121.localdir = mountdir
+vendor.FOO.ftp2121.remotedir = '/'
 
 # SFTP configuration (secure FTP)
 vendor.FOO.sftp.hostname = '127.0.0.1'

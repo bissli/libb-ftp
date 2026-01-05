@@ -2,12 +2,13 @@ import contextlib
 import os
 
 import pytest
-from tests import config
 from src.ftp.client import sync_site
+from tests import config
 from tests.fixtures.test_data import create_local_file, make_binary_file
 from tests.fixtures.test_data import make_text_file
 
 import ftp
+import pathlib
 
 
 def test_ftp_pwd(clean_ftp_mount, ftp_docker):
@@ -31,7 +32,7 @@ def test_ftp_dir(clean_ftp_mount, ftp_docker):
     local_dir = os.path.join(config.tmpdir.dir, 'local_dir')
     local_file1 = os.path.join(local_dir, 'LocalFile1.txt')
     local_file2 = os.path.join(local_dir, 'LocalFile2.txt')
-    os.makedirs(local_dir, exist_ok=True)
+    pathlib.Path(local_dir).mkdir(exist_ok=True, parents=True)
     make_text_file(local_file1, 10)
     make_text_file(local_file2, 10)
 
@@ -61,7 +62,7 @@ def test_ftp_put_ascii(clean_ftp_mount, ftp_docker):
         assert 'Remote.txt' in files
         remotefile = os.path.join(config.tmpdir.dir, 'Remote.txt')
         ftpcn.getascii('Remote.txt', remotefile)
-        assert open(localfile).read() == open(remotefile).read()
+        assert pathlib.Path(localfile).open().read() == pathlib.Path(remotefile).open().read()
 
 
 def test_ftp_put_binary(clean_ftp_mount, ftp_docker):
@@ -78,7 +79,7 @@ def test_ftp_put_binary(clean_ftp_mount, ftp_docker):
         assert 'Remote.dat' in files
         remotefile = os.path.join(config.tmpdir.dir, 'Remote.dat')
         ftpcn.getbinary('Remote.dat', remotefile)
-        assert open(localfile, 'rb').read() == open(remotefile, 'rb').read()
+        assert pathlib.Path(localfile).open('rb').read() == pathlib.Path(remotefile).open('rb').read()
 
 
 def test_ftp_get_ascii(clean_ftp_mount, ftp_docker):
@@ -93,7 +94,7 @@ def test_ftp_get_ascii(clean_ftp_mount, ftp_docker):
         assert 'RemoteAscii.txt' in files
         remotefile = os.path.join(config.tmpdir.dir, 'RemoteAscii.txt')
         ftpcn.getascii('RemoteAscii.txt', remotefile)
-        assert open(localfile).read() == open(remotefile).read()
+        assert pathlib.Path(localfile).open().read() == pathlib.Path(remotefile).open().read()
 
 
 def test_ftp_get_binary(clean_ftp_mount, ftp_docker):
@@ -108,7 +109,7 @@ def test_ftp_get_binary(clean_ftp_mount, ftp_docker):
         assert 'Remote.dat' in files
         remotefile = os.path.join(config.tmpdir.dir, 'Remote.dat')
         ftpcn.getbinary('Remote.dat', remotefile)
-        assert open(localfile, 'rb').read() == open(remotefile, 'rb').read()
+        assert pathlib.Path(localfile).open('rb').read() == pathlib.Path(remotefile).open('rb').read()
 
 
 def test_ftp_delete(clean_ftp_mount, ftp_docker):
@@ -138,14 +139,25 @@ def test_sync_site(clean_ftp_mount, ftp_docker):
     with ftp.connectmanager('vendor.FOO.ftp', config) as ftpcn:
         ftpcn.putascii(localfile1, 'foofile.txt')
 
-    os.remove(localfile1)
+    pathlib.Path(localfile1).unlink()
 
     sync_site('vendor.FOO.ftp', config)
 
-    assert os.path.exists(localfile1)
-    with open(localfile1) as f:
+    assert pathlib.Path(localfile1).exists()
+    with pathlib.Path(localfile1).open() as f:
         lines = f.readlines()
         assert len(lines) == 10
+
+
+def test_ftp_nonstandard_port(clean_ftp_mount, ftp_docker_nonstandard_port):
+    """Verify FTP connection works on non-standard port 2121.
+
+    This test validates that the port parameter is correctly passed through
+    the FTP connection chain (connect -> FtpConnection.__init__ -> ftplib.FTP.connect).
+    """
+    with ftp.connectmanager('vendor.FOO.ftp2121', config) as ftpcn:
+        assert ftpcn is not None
+        assert ftpcn.pwd() == '/'
 
 
 if __name__ == '__main__':

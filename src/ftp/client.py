@@ -88,7 +88,8 @@ def connect(options: FtpOptions = None, config=None, **kw):
                     raise paramiko.SSHException
             else:
                 cn = FtpConnection(options.hostname, options.username,
-                                   options.password, tzinfo=options.tzinfo)
+                                   options.password, port=options.port,
+                                   tzinfo=options.tzinfo)
         except paramiko.AuthenticationException as err:
             logger.error(err)
             return
@@ -209,13 +210,13 @@ def streamtofile(func):
         for i, arg in enumerate(args):
             if isinstance(arg, IOBase):
                 rf = os.path.join(tempfile.tempdir(), random.getrandbits(32))
-                with open(rf, 'w' if isinstance(arg, StringIO) else 'wb') as f:
+                with Path(rf).open('w' if isinstance(arg, StringIO) else 'wb') as f:
                     f.write(arg.read())
                 args[i] = f
         for k, v in kwargs.items():
             if isinstance(v, IOBase):
                 rf = os.path.join(tempfile.tempdir(), random.getrandbits(32))
-                with open(rf, 'w' if isinstance(arg, StringIO) else 'wb') as f:
+                with Path(rf).open('w' if isinstance(arg, StringIO) else 'wb') as f:
                     f.write(arg.read())
                 kwargs[k] = f
         return func(*args, **kwargs)
@@ -335,8 +336,10 @@ class BaseConnection(ABC):
 class FtpConnection(BaseConnection):
     """Wrapper around ftplib
     """
-    def __init__(self, hostname, username, password, tzinfo=LCL):
-        self.ftp = ftplib.FTP(hostname, username, password)
+    def __init__(self, hostname, username, password, port=21, tzinfo=LCL):
+        self.ftp = ftplib.FTP()
+        self.ftp.connect(hostname, port)
+        self.ftp.login(username, password)
         self._tzinfo = tzinfo
 
     def pwd(self):
