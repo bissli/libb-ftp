@@ -33,7 +33,7 @@ class FtpOptions(ConfigOptions):
     username: str = None
     password: str = None
     secure: bool = False
-    port: int = 22
+    port: int = None
 
     # SSH key authentication (for secure connections)
     ssh_key_filename: str | Path = None

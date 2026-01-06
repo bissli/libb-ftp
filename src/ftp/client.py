@@ -76,20 +76,26 @@ def connect(options: FtpOptions = None, config=None, **kw):
     while tries < 10 and not cn:
         try:
             if options.secure:
-                cn = SecureFtpConnection(options.hostname, username=options.username,
-                                         password=options.password,
-                                         port=options.port,
-                                         tzinfo=options.tzinfo,
-                                         ssh_key_filename=options.ssh_key_filename,
-                                         ssh_key_content=options.ssh_key_content,
-                                         ssh_key_type=options.ssh_key_type,
-                                         ssh_key_passphrase=options.ssh_key_passphrase)
+                sftp_kwargs = {
+                    'username': options.username,
+                    'password': options.password,
+                    'tzinfo': options.tzinfo,
+                    'ssh_key_filename': options.ssh_key_filename,
+                    'ssh_key_content': options.ssh_key_content,
+                    'ssh_key_type': options.ssh_key_type,
+                    'ssh_key_passphrase': options.ssh_key_passphrase,
+                }
+                if options.port is not None:
+                    sftp_kwargs['port'] = options.port
+                cn = SecureFtpConnection(options.hostname, **sftp_kwargs)
                 if not cn:
                     raise paramiko.SSHException
             else:
+                ftp_kwargs = {'tzinfo': options.tzinfo}
+                if options.port is not None:
+                    ftp_kwargs['port'] = options.port
                 cn = FtpConnection(options.hostname, options.username,
-                                   options.password, port=options.port,
-                                   tzinfo=options.tzinfo)
+                                   options.password, **ftp_kwargs)
         except paramiko.AuthenticationException as err:
             logger.error(err)
             return
