@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from date import Date, DateTime
+from opendate import Date, DateTime
 from ftp.config import gpg
 from ftp.options import FtpOptions
 from libb import load_options

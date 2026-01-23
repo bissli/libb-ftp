@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 import paramiko
 
-from date import LCL, DateTime
+from opendate import LCL, DateTime
 from ftp.options import FtpOptions
 from ftp.pgp import decrypt_pgp_file
 from libb import FileLike, load_options

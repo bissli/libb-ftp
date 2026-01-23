@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from date import LCL
+from opendate import LCL
 from ftp.config import tmpdir
 from libb import ConfigOptions
 
