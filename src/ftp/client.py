@@ -248,8 +248,8 @@ def sync_directory(cn, options, files, _local: Path = None, _remote: str = None)
             filename = sync_file(cn, options, entry, _local, _remote)
             if filename:
                 files.append(filename)
-        except:
-            logger.exception('Error syncing file: %s/%s', _remote, entry.name)
+        except Exception as exc:
+            logger.warning('Error syncing file: %s/%s: %s', _remote, entry.name, exc)
 
 
 def sync_file(cn, options, entry, _local: Path, _remote: str):
